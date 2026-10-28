@@ -1,0 +1,21 @@
+# CI on every push to our fork: vet and build. Upstream's tests drive a real headless Chrome
+# (their GitHub workflow runs them in chromedp/headless-shell); our runner's golang image has no
+# browser, so they're left to upstream's CI until the runner gets one. No third-party actions: the
+# job fetches the commit's archive from Gitea's API, which the runner provides as $GITEA_API.
+name: ci
+on: [push]
+jobs:
+  go:
+    runs-on: golang
+    steps:
+      - name: fetch this commit
+        run: |
+          curl -fsSL -H "Authorization: token $TOKEN" -o /tmp/src.tar.gz \
+            "$GITEA_API/repos/$GITHUB_REPOSITORY/archive/$GITHUB_SHA.tar.gz"
+          mkdir -p /tmp/src && tar -xzf /tmp/src.tar.gz -C /tmp/src --strip-components=1
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: vet and build
+        run: |
+          cd /tmp/src
+          go vet ./... && go build ./...
